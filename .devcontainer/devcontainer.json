@@ -2,7 +2,7 @@
   "name": "Postgres-PGML-Vector Dev Environment",
   "build": {
     "dockerfile": "Dockerfile", // Or "postgres.Dockerfile" if you renamed it
-    "context": ".." // Assumes Dockerfile is in .devcontainer and needs to access repo root
+    "context": "." // Assumes Dockerfile is in .devcontainer and needs to access repo root
                     // If Dockerfile is in repo root, use "."
   },
 
