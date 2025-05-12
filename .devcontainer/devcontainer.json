@@ -1,0 +1,39 @@
+{
+  "name": "Postgres-PGML-Vector Dev Environment",
+  "build": {
+    "dockerfile": "Dockerfile", // Or "postgres.Dockerfile" if you renamed it
+    "context": ".." // Assumes Dockerfile is in .devcontainer and needs to access repo root
+                    // If Dockerfile is in repo root, use "."
+  },
+
+  // Forward the PostgreSQL port from the container to your local machine
+  // so you can connect to it from your local VS Code or other tools.
+  "forwardPorts": [5432],
+
+  // Optional: Run a command after the container is created but before VS Code connects.
+  // Useful if you need to ensure PostgreSQL is fully up or perform other setup.
+  // "postCreateCommand": "echo 'Container created. PostgreSQL should be starting.'",
+
+  // Optional: Run commands after VS Code attaches to the container.
+  // "postAttachCommand": {
+  //   "server": "echo 'VS Code attached. Waiting for PostgreSQL...'; sleep 10; psql -U postgres -d postgres -c '\\dx'"
+  // },
+
+  // Keep the container running even if VS Code disconnects from it
+  "runArgs": ["--init"], // '--init' handles signals properly for services like Postgres
+
+  // Optional: VS Code extensions to install in the Codespace
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "cweijan.vscode-postgresql-client2", // A VS Code PostgreSQL client
+        "github.copilot" // If you use Copilot
+      ]
+    }
+  },
+
+  // Define where your workspace will be mounted
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+}
