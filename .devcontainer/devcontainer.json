@@ -1,27 +1,20 @@
 {
-  "name": "Postgres-PGML-Vector Dev Environment",
+  "name": "Postgres-PGML-Vector",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": "..",  // Changed from "." to ".." if Dockerfile is in .devcontainer
-    "args": {
-      "WORKSPACE": "/workspace"
-    }
+    "context": ".."
   },
   "forwardPorts": [5432],
-  "runArgs": [
-    "--init",
-    "--user=root",  // Ensure proper permissions
-    "-v", "${localWorkspaceFolder}:/workspace"
-  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "remoteUser": "postgres",
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
-        "cweijan.vscode-postgresql-client2",
-        "github.copilot"
+        "cweijan.vscode-postgresql-client2"
       ]
     }
   },
-  "workspaceFolder": "/workspace",
-  "remoteUser": "postgres"  // Changed from default root
+  "postCreateCommand": "sudo chown -R postgres:postgres /workspace"
 }
