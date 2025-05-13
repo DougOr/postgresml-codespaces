@@ -1,14 +1,13 @@
 FROM ubuntu:22.04
 
+# Environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
-    WORKSPACE=/workspace
+    WORKSPACE=/workspace \
+    PG_DATA=/var/lib/postgresql/14/main
 
-# Create workspace directory first (as root)
-RUN mkdir -p ${WORKSPACE} && chmod 777 ${WORKSPACE}
-
-# Install base dependencies
+# Base system setup
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         wget \
@@ -20,33 +19,87 @@ RUN apt-get update && \
         locales \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up locale
+# Configure locale
 RUN locale-gen en_US.UTF-8
 
-# [Previous PostgreSQL, PostgresML, pgvector installation steps remain the same...]
-# Keep all your existing installation commands here
+# Add PostgreSQL repository
+RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
 
-# Final workspace setup
+# Install PostgreSQL and dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        postgresql-14 \
+        postgresql-client-14 \
+        postgresql-server-dev-14 \
+        build-essential \
+        python3-dev \
+        python3-pip \
+        libopenblas-dev \
+        liblapack-dev \
+        libcurl4-openssl-dev \
+        libgomp1 \
+        git \
+        vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PostgresML
+RUN echo "deb [trusted=yes] https://apt.postgresml.org jammy main" > /etc/apt/sources.list.d/postgresml.list && \
+    apt-get update && \
+    apt-get install -y postgresql-pgml-14 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python ML packages
+RUN pip3 install --no-cache-dir xgboost lightgbm scikit-learn numpy pandas
+
+# Install pgvector
+RUN git clone --branch v0.6.0 https://github.com/pgvector/pgvector && \
+    cd pgvector && \
+    echo "trusted = true" >> vector.control && \
+    make PG_CONFIG=/usr/lib/postgresql/14/bin/pg_config && \
+    make PG_CONFIG=/usr/lib/postgresql/14/bin/pg_config install && \
+    cd .. && \
+    rm -rf pgvector
+
+# Configure PostgreSQL
+RUN mkdir -p /var/run/postgresql && \
+    chown -R postgres:postgres /var/run/postgresql && \
+    mkdir -p ${PG_DATA} && \
+    chown -R postgres:postgres ${PG_DATA}
+
+# Setup workspace (will be overridden by mount, but ensures permissions)
+RUN mkdir -p ${WORKSPACE} && \
+    chown -R postgres:postgres ${WORKSPACE} && \
+    usermod -a -G sudo postgres && \
+    echo "postgres ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
 WORKDIR ${WORKSPACE}
 
-# Postgres setup (as postgres user)
+# Switch to postgres user
 USER postgres
-RUN /usr/lib/postgresql/14/bin/initdb -D /var/lib/postgresql/14/main && \
-    echo "host all all 0.0.0.0/0 md5" >> /var/lib/postgresql/14/main/pg_hba.conf && \
-    echo "listen_addresses='*'" >> /var/lib/postgresql/14/main/postgresql.conf
 
-# Switch back to root for final setup
-USER root
+# Initialize database
+RUN /usr/lib/postgresql/14/bin/initdb -D ${PG_DATA} && \
+    echo "host all all 0.0.0.0/0 md5" >> ${PG_DATA}/pg_hba.conf && \
+    echo "listen_addresses='*'" >> ${PG_DATA}/postgresql.conf && \
+    echo "shared_preload_libraries = 'pgml,vector'" >> ${PG_DATA}/postgresql.conf
 
-# Create a wrapper script for startup
+# Create startup script
 RUN echo '#!/bin/bash\n\
-su postgres -c "/usr/lib/postgresql/14/bin/postgres -D /var/lib/postgresql/14/main &"\n\
-sleep 2\n\
-exec "$@"' > /startup.sh && \
-    chmod +x /startup.sh
+/usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} -l ${PG_DATA}/postgresql.log start\n\
+tail -f ${PG_DATA}/postgresql.log' > ${WORKSPACE}/start-postgres.sh && \
+    chmod +x ${WORKSPACE}/start-postgres.sh
+
+# Create extensions
+RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
+    sleep 2 && \
+    psql -c "CREATE EXTENSION IF NOT EXISTS pgml;" && \
+    psql -c "CREATE EXTENSION IF NOT EXISTS vector;" && \
+    psql -c "ALTER USER postgres WITH PASSWORD 'postgres';" && \
+    /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} stop
 
 EXPOSE 5432
 
-# This allows both workspace mounting and Postgres to work
-ENTRYPOINT ["/startup.sh"]
-CMD ["bash"]
+# Entrypoint handles both workspace and postgres startup
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["/workspace/start-postgres.sh"]
