@@ -3,10 +3,9 @@
   "dockerFile": "Dockerfile",
   "context": "..",
   "workspaceFolder": "/workspace",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "remoteUser": "postgres",
-  "postCreateCommand": "sudo chown -R postgres:postgres /workspace && sudo chmod -R 777 /workspace",
   "forwardPorts": [5432],
+  "postCreateCommand": "sudo chown -R postgres:postgres /workspace",
   "runArgs": [
     "--init",
     "--user=postgres",
