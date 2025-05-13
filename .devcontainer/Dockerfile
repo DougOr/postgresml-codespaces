@@ -92,8 +92,5 @@ RUN echo "postgres" > /tmp/pgpass && \
 # Expose the PostgreSQL port
 EXPOSE 5432
 
-# Start Server
-RUN /usr/lib/postgresql/14/bin/pg_ctl -D /var/lib/postgresql/14/main -l /tmp/pgstart.log start
-
 # Set the default command to run when starting the container
 CMD ["/usr/lib/postgresql/14/bin/postgres", "-D", "/var/lib/postgresql/14/main"]
