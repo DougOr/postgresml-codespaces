@@ -1,6 +1,8 @@
 FROM ubuntu:22.04
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
 
 # Install base dependencies
 RUN apt-get update && \
@@ -16,8 +18,6 @@ RUN apt-get update && \
 
 # Set up locale
 RUN locale-gen en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LC_ALL en_US.UTF-8
 
 # Add PostgreSQL repository
 RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
@@ -61,7 +61,10 @@ RUN git clone --branch v0.6.0 https://github.com/pgvector/pgvector && \
 # Prepare directories and permissions
 RUN mkdir -p /var/run/postgresql && \
     chown -R postgres:postgres /var/run/postgresql && \
-    chown -R postgres:postgres /var/lib/postgresql
+    mkdir -p /workspace && \
+    chown postgres:postgres /workspace
+
+WORKDIR /workspace
 
 # Switch to postgres user
 USER postgres
@@ -73,16 +76,14 @@ RUN /usr/lib/postgresql/14/bin/initdb -D /var/lib/postgresql/14/main && \
     echo "listen_addresses='*'" >> /var/lib/postgresql/14/main/postgresql.conf && \
     echo "shared_preload_libraries = 'pgml,vector'" >> /var/lib/postgresql/14/main/postgresql.conf
 
-# Start server, create extensions, then stop (cleanly)
-RUN /usr/lib/postgresql/14/bin/pg_ctl -D /var/lib/postgresql/14/main -l /var/lib/postgresql/14/main/logfile.log start && \
+# Create extensions (server will auto-start at runtime)
+RUN /usr/lib/postgresql/14/bin/pg_ctl -D /var/lib/postgresql/14/main -l /var/log/postgresql.log start && \
     sleep 2 && \
     psql -c "ALTER USER postgres WITH PASSWORD 'postgres';" && \
-    psql -c "CREATE EXTENSION pgml;" && \
-    psql -c "CREATE EXTENSION vector;" && \
-    /usr/lib/postgresql/14/bin/pg_ctl -D /var/lib/postgresql/14/main -m fast stop && \
-    rm -f /var/lib/postgresql/14/main/postmaster.pid
+    psql -c "CREATE EXTENSION IF NOT EXISTS pgml;" && \
+    psql -c "CREATE EXTENSION IF NOT EXISTS vector;" && \
+    /usr/lib/postgresql/14/bin/pg_ctl -D /var/lib/postgresql/14/main -m fast stop
 
 EXPOSE 5432
 
-# The main container command
-CMD ["/usr/lib/postgresql/14/bin/postgres", "-D", "/var/lib/postgresql/14/main", "-c", "config_file=/var/lib/postgresql/14/main/postgresql.conf"]
+CMD ["bash", "-c", "/usr/lib/postgresql/14/bin/pg_ctl -D /var/lib/postgresql/14/main -l /var/log/postgresql.log start && tail -f /var/log/postgresql.log"]
