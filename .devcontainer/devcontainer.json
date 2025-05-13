@@ -1,12 +1,7 @@
 {
   "name": "PostgresML Workspace",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "..",
-    "args": {
-      "WORKSPACE": "/workspace"
-    }
-  },
+  "dockerFile": "Dockerfile",
+  "context": "..",
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "remoteUser": "postgres",
