@@ -1,26 +1,29 @@
 FROM ubuntu:22.04
 
-# Environment variables
+# Essential environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
-    PG_DATA=/var/lib/postgresql/14/main
+    PG_DATA=/var/lib/postgresql/14/main \
+    WORKSPACE=/workspace
 
-# Install base packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget gnupg2 lsb-release ca-certificates software-properties-common sudo locales && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN locale-gen en_US.UTF-8
+# Create workspace FIRST with correct permissions
+RUN mkdir -p ${WORKSPACE} && \
+    chmod 777 ${WORKSPACE} && \
+    # Install base packages in same layer to reduce image size
+    apt-get update && apt-get install -y --no-install-recommends \
+        wget gnupg2 lsb-release ca-certificates \
+        software-properties-common sudo locales && \
+    rm -rf /var/lib/apt/lists/* && \
+    locale-gen en_US.UTF-8
 
 # PostgreSQL installation
 RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-14 postgresql-client-14 postgresql-server-dev-14 \
-    build-essential python3-dev python3-pip \
-    libopenblas-dev liblapack-dev libcurl4-openssl-dev libgomp1 git vim && \
+    wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        postgresql-14 postgresql-client-14 postgresql-server-dev-14 \
+        build-essential python3-dev python3-pip \
+        libopenblas-dev liblapack-dev libcurl4-openssl-dev libgomp1 git vim && \
     rm -rf /var/lib/apt/lists/*
 
 # PostgresML installation
@@ -45,10 +48,13 @@ RUN mkdir -p /var/run/postgresql && \
     mkdir -p ${PG_DATA} && \
     chown -R postgres:postgres ${PG_DATA}
 
-# Create workspace directory (critical fix)
-RUN mkdir -p /workspace && chown postgres:postgres /workspace
+# Configure workspace permissions
+RUN chown -R postgres:postgres ${WORKSPACE} && \
+    usermod -aG sudo postgres && \
+    echo "postgres ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 USER postgres
+WORKDIR ${WORKSPACE}
 
 # Initialize database
 RUN /usr/lib/postgresql/14/bin/initdb -D ${PG_DATA} && \
@@ -58,7 +64,7 @@ RUN /usr/lib/postgresql/14/bin/initdb -D ${PG_DATA} && \
 
 # Create extensions
 RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
-    sleep 2 && \
+    sleep 5 && \  # Increased sleep for reliability
     psql -c "CREATE EXTENSION IF NOT EXISTS pgml;" && \
     psql -c "CREATE EXTENSION IF NOT EXISTS vector;" && \
     psql -c "ALTER USER postgres WITH PASSWORD 'postgres';" && \
@@ -66,5 +72,6 @@ RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
 
 EXPOSE 5432
 
-WORKDIR /workspace
-CMD ["/usr/lib/postgresql/14/bin/postgres", "-D", "/var/lib/postgresql/14/main"]
+# Startup command
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["/usr/lib/postgresql/14/bin/postgres -D ${PG_DATA}"]
