@@ -1,12 +1,22 @@
 {
   "name": "PostgresML Workspace",
-  "dockerFile": "Dockerfile",
-  "context": "..",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "WORKSPACE": "/workspace"
+    }
+  },
   "workspaceFolder": "/workspace",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "remoteUser": "postgres",
-  "postCreateCommand": "sudo chown -R postgres:postgres /workspace",
+  "postCreateCommand": "sudo chown -R postgres:postgres /workspace && sudo chmod -R 777 /workspace",
   "forwardPorts": [5432],
+  "runArgs": [
+    "--init",
+    "--user=postgres",
+    "-v", "${localWorkspaceFolder}:/workspace"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -14,9 +24,9 @@
         "cweijan.vscode-postgresql-client2"
       ],
       "settings": {
-        "terminal.integrated.cwd": "/workspace"
+        "terminal.integrated.cwd": "/workspace",
+        "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
-  },
-  "runArgs": ["--init"]
+  }
 }
