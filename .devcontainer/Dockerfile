@@ -42,7 +42,7 @@ RUN echo "deb [trusted=yes] https://apt.postgresml.org jammy main" > /etc/apt/so
 
 RUN pip3 install --no-cache-dir xgboost lightgbm scikit-learn numpy pandas
 
-# Step 8: Build and install pgvector
+# Build and install pgvector
 RUN git clone --branch v0.6.0 https://github.com/pgvector/pgvector && \
     cd pgvector && \
     make PG_CONFIG=/usr/lib/postgresql/14/bin/pg_config && \
@@ -50,16 +50,16 @@ RUN git clone --branch v0.6.0 https://github.com/pgvector/pgvector && \
     cd .. && \
     rm -rf pgvector
 
-# Step 9: Prepare directories and set permissions (as root)
+# Prepare directories and set permissions (as root)
 RUN mkdir -p /var/run/postgresql && \
     chown -R postgres:postgres /var/run/postgresql && \
     mkdir -p /var/lib/postgresql && \
     chown -R postgres:postgres /var/lib/postgresql
 
-# Step 10: Switch to postgres user
+# Switch to postgres user
 USER postgres
 
-# Step 11: Clean data dir, initialize DB, configure, create extensions, and stop
+# Clean data dir, initialize DB, configure, create extensions, and stop
 RUN echo "postgres" > /tmp/pgpass && \
     chmod 600 /tmp/pgpass && \
     rm -rf /var/lib/postgresql/14/main && \
@@ -89,8 +89,11 @@ RUN echo "postgres" > /tmp/pgpass && \
     psql -U postgres -d postgres -c "CREATE EXTENSION IF NOT EXISTS vector;" && \
     /usr/lib/postgresql/14/bin/pg_ctl -D /var/lib/postgresql/14/main -m fast -w stop
 
-# Step 12: Expose the PostgreSQL port
+# Expose the PostgreSQL port
 EXPOSE 5432
 
-# Step 13: Set the default command to run when starting the container
+# Start Server
+RUN /usr/lib/postgresql/14/bin/pg_ctl -D /var/lib/postgresql/14/main -l /tmp/pgstart.log start
+
+# Set the default command to run when starting the container
 CMD ["/usr/lib/postgresql/14/bin/postgres", "-D", "/var/lib/postgresql/14/main"]
