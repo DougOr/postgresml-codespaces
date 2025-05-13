@@ -1,5 +1,5 @@
 {
-  "name": "Postgres-PGML-Vector",
+  "name": "PostgresML Workspace",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
@@ -8,6 +8,7 @@
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "remoteUser": "postgres",
+  "postCreateCommand": "sudo chown -R postgres:postgres /workspace && sudo chmod -R 777 /workspace",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -16,5 +17,5 @@
       ]
     }
   },
-  "postCreateCommand": "sudo chown -R postgres:postgres /workspace"
+  "runArgs": ["--init", "--user=postgres"]
 }
