@@ -4,7 +4,6 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
-    WORKSPACE=/workspace \
     PG_DATA=/var/lib/postgresql/14/main
 
 # Base system setup
@@ -67,14 +66,6 @@ RUN mkdir -p /var/run/postgresql && \
     mkdir -p ${PG_DATA} && \
     chown -R postgres:postgres ${PG_DATA}
 
-# Setup workspace (will be overridden by mount, but ensures permissions)
-RUN mkdir -p ${WORKSPACE} && \
-    chown -R postgres:postgres ${WORKSPACE} && \
-    usermod -a -G sudo postgres && \
-    echo "postgres ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-WORKDIR ${WORKSPACE}
-
 # Switch to postgres user
 USER postgres
 
@@ -83,12 +74,6 @@ RUN /usr/lib/postgresql/14/bin/initdb -D ${PG_DATA} && \
     echo "host all all 0.0.0.0/0 md5" >> ${PG_DATA}/pg_hba.conf && \
     echo "listen_addresses='*'" >> ${PG_DATA}/postgresql.conf && \
     echo "shared_preload_libraries = 'pgml,vector'" >> ${PG_DATA}/postgresql.conf
-
-# Create startup script
-RUN echo '#!/bin/bash\n\
-/usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} -l ${PG_DATA}/postgresql.log start\n\
-tail -f ${PG_DATA}/postgresql.log' > ${WORKSPACE}/start-postgres.sh && \
-    chmod +x ${WORKSPACE}/start-postgres.sh
 
 # Create extensions
 RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
@@ -100,6 +85,5 @@ RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
 
 EXPOSE 5432
 
-# Entrypoint handles both workspace and postgres startup
-ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["/workspace/start-postgres.sh"]
+# Startup command
+CMD ["/bin/bash", "-c", "/usr/lib/postgresql/14/bin/postgres -D ${PG_DATA}"]
