@@ -1,5 +1,6 @@
 FROM ubuntu:22.04
 
+# Environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
@@ -22,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenblas-dev liblapack-dev libcurl4-openssl-dev libgomp1 git vim && \
     rm -rf /var/lib/apt/lists/*
 
-# PostgresML
+# PostgresML installation
 RUN echo "deb [trusted=yes] https://apt.postgresml.org jammy main" > /etc/apt/sources.list.d/postgresml.list && \
     apt-get update && apt-get install -y postgresql-pgml-14 && \
     rm -rf /var/lib/apt/lists/*
@@ -30,7 +31,7 @@ RUN echo "deb [trusted=yes] https://apt.postgresml.org jammy main" > /etc/apt/so
 # Python packages
 RUN pip3 install --no-cache-dir xgboost lightgbm scikit-learn numpy pandas
 
-# pgvector
+# pgvector installation
 RUN git clone --branch v0.6.0 https://github.com/pgvector/pgvector && \
     cd pgvector && \
     echo "trusted = true" >> vector.control && \
@@ -44,13 +45,18 @@ RUN mkdir -p /var/run/postgresql && \
     mkdir -p ${PG_DATA} && \
     chown -R postgres:postgres ${PG_DATA}
 
+# Create workspace directory (critical fix)
+RUN mkdir -p /workspace && chown postgres:postgres /workspace
+
 USER postgres
 
+# Initialize database
 RUN /usr/lib/postgresql/14/bin/initdb -D ${PG_DATA} && \
     echo "host all all 0.0.0.0/0 md5" >> ${PG_DATA}/pg_hba.conf && \
     echo "listen_addresses='*'" >> ${PG_DATA}/postgresql.conf && \
     echo "shared_preload_libraries = 'pgml,vector'" >> ${PG_DATA}/postgresql.conf
 
+# Create extensions
 RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
     sleep 2 && \
     psql -c "CREATE EXTENSION IF NOT EXISTS pgml;" && \
@@ -60,4 +66,5 @@ RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
 
 EXPOSE 5432
 
+WORKDIR /workspace
 CMD ["/usr/lib/postgresql/14/bin/postgres", "-D", "/var/lib/postgresql/14/main"]
