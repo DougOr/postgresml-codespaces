@@ -1,17 +1,14 @@
 FROM ubuntu:22.04
 
-# Essential environment variables
+# Environment configuration
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
-    PG_DATA=/var/lib/postgresql/14/main \
-    WORKSPACE=/workspace
+    PG_DATA=/var/lib/postgresql/14/main
 
-# Create workspace FIRST with correct permissions
-RUN mkdir -p ${WORKSPACE} && \
-    chmod 777 ${WORKSPACE} && \
-    # Install base packages in same layer to reduce image size
-    apt-get update && apt-get install -y --no-install-recommends \
+# System setup in single layer
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
         wget gnupg2 lsb-release ca-certificates \
         software-properties-common sudo locales && \
     rm -rf /var/lib/apt/lists/* && \
@@ -48,13 +45,10 @@ RUN mkdir -p /var/run/postgresql && \
     mkdir -p ${PG_DATA} && \
     chown -R postgres:postgres ${PG_DATA}
 
-# Configure workspace permissions
-RUN chown -R postgres:postgres ${WORKSPACE} && \
-    usermod -aG sudo postgres && \
-    echo "postgres ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+# Critical change: Don't create /workspace in Dockerfile
+# Let VS Code handle it completely
 
 USER postgres
-WORKDIR ${WORKSPACE}
 
 # Initialize database
 RUN /usr/lib/postgresql/14/bin/initdb -D ${PG_DATA} && \
@@ -64,7 +58,7 @@ RUN /usr/lib/postgresql/14/bin/initdb -D ${PG_DATA} && \
 
 # Create extensions
 RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
-    sleep 5 && \  # Increased sleep for reliability
+    sleep 5 && \
     psql -c "CREATE EXTENSION IF NOT EXISTS pgml;" && \
     psql -c "CREATE EXTENSION IF NOT EXISTS vector;" && \
     psql -c "ALTER USER postgres WITH PASSWORD 'postgres';" && \
@@ -72,6 +66,5 @@ RUN /usr/lib/postgresql/14/bin/pg_ctl -D ${PG_DATA} start && \
 
 EXPOSE 5432
 
-# Startup command
-ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["/usr/lib/postgresql/14/bin/postgres -D ${PG_DATA}"]
+# No WORKDIR instruction - let VS Code handle it
+CMD ["/usr/lib/postgresql/14/bin/postgres", "-D", "/var/lib/postgresql/14/main"]
